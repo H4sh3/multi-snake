@@ -19,7 +19,7 @@ interface GameState {
   active: boolean;
 }
 
-const socket = io('http://localhost:8000', {
+const socket = io('http://192.168.178.96:8000', {
   autoConnect: false,
 });
 
@@ -45,9 +45,13 @@ const Game = () => {
 
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
-        socket.emit('turn', 'left');
+        socket.emit('key_pressed', 'left');
       } else if (e.key === 'ArrowRight') {
-        socket.emit('turn', 'right');
+        socket.emit('key_pressed', 'right');
+      } else if (e.key === 'ArrowUp') {
+        socket.emit('key_pressed', 'up');
+      } else if (e.key === 'ArrowDown') {
+        socket.emit('key_pressed', 'down');
       }
     };
 

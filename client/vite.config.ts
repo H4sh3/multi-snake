@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     hmr: {
-      host: "localhost",
+      host: "192.168.178.96",
       protocol: "ws",
     },
   }

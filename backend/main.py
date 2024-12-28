@@ -72,13 +72,11 @@ class GameState:
         
         for player in alive_players:
             dx, dy = player.direction.value
-            new_x = player.x + dx
-            new_y = player.y + dy
-            
-            # Check collision with walls or trails
-            if (new_x < 0 or new_x >= self.width or 
-                new_y < 0 or new_y >= self.height or 
-                self.grid[new_y][new_x] is not None):
+            new_x = (player.x + dx) % self.width  # Wrap around horizontally
+            new_y = (player.y + dy) % self.height  # Wrap around vertically
+
+            # Check collision with trails
+            if self.grid[new_y][new_x] is not None:
                 # Player dies
                 player.alive = False
                 # Remove player trail from the grid
@@ -105,32 +103,34 @@ class GameState:
 
     def turn_player(self, player_id: str, direction: str):
         if player_id not in self.players:
+            print("no player found")
             return
-            
+
         player = self.players[player_id]
         if not player.alive:
+            print("player is dead")
             return
-            
+
+        # Map input strings to Direction enums
+        input_to_direction = {
+            "up": Direction.UP,
+            "right": Direction.RIGHT,
+            "down": Direction.DOWN,
+            "left": Direction.LEFT
+        }
+
+        new_direction = input_to_direction.get(direction)
+        print(new_direction)
+        if not new_direction:
+            return  # Invalid direction input
+
         current = player.direction
-        if direction == "left":
-            turns = {
-                Direction.UP: Direction.LEFT,
-                Direction.LEFT: Direction.DOWN,
-                Direction.DOWN: Direction.RIGHT,
-                Direction.RIGHT: Direction.UP
-            }
-        else:
-            turns = {
-                Direction.UP: Direction.RIGHT,
-                Direction.RIGHT: Direction.DOWN,
-                Direction.DOWN: Direction.LEFT,
-                Direction.LEFT: Direction.UP
-            }
-        new_direction = turns[current]
         # Prevent turning into the opposite direction
         if new_direction.value[0] + current.value[0] == 0 and new_direction.value[1] + current.value[1] == 0:
             return
+
         player.direction = new_direction
+
 
     def reset(self):
         """Resets the game state for a new round."""
@@ -194,6 +194,7 @@ async def game_loop():
     while True:
         if game_state.game_active:
             game_running, winner_sid = game_state.update()
+            await sio.emit('state_update', game_state.to_dict())
             if not game_running:
                 game_state.game_active = False
                 if winner_sid:
@@ -202,7 +203,6 @@ async def game_loop():
                     print("No winner this round (tie).")
                 await sio.emit('round_end', winner_sid)
                 game_state.reset()
-        await sio.emit('state_update', game_state.to_dict())
         await asyncio.sleep(1 / TICK_RATE)
 
 @sio.on('connect')
@@ -222,8 +222,9 @@ async def player_ready(sid):
         if all(p.ready for p in game_state.players.values() if p.alive):
             game_state.game_active = True
             print("All players ready. Starting game!")
+    await sio.emit('state_update', game_state.to_dict())
 
-@sio.on('turn')
+@sio.on('key_pressed')
 async def turn(sid, direction):
     game_state.turn_player(sid, direction)
 
