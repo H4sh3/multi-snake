@@ -19,7 +19,7 @@ interface GameState {
   active: boolean;
 }
 
-const socket = io('http://192.168.178.96:8000', {
+const socket = io('http://192.168.178.27:8000', {
   autoConnect: false,
 });
 
