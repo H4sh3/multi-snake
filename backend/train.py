@@ -48,7 +48,7 @@ losses = []
 
 highscore = 0
 
-max_episode = 5000
+max_episode = 50000
 gym.env.add_player("0")
 
 for episode in range(max_episode):
