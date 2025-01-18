@@ -1,14 +1,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from socketio import AsyncServer, ASGIApp
 import asyncio
-from enum import Enum
-from typing import Dict, List, Tuple, Union
-import random
 from environment import GameEnvironment
-from player import Direction
-
+from backend.player import Direction
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
