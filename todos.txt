@@ -1,0 +1,6 @@
+# Train agent to work with bigger environments
+    - new env that returns part of the state (n by n around head)
+    - adjust model to get direction of food as input - in case its out of view
+
+# game server
+    - state update should consist of players positions and food

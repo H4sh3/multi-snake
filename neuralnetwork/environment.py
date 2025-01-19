@@ -4,11 +4,10 @@ from gymnasium import spaces
 import random
 
 class SnakeEnv(gym.Env):
-    def __init__(self, i=0, grid_size=(10, 10), cell_size=40):
+    def __init__(self, i=0, grid_size=(10, 10)):
         super().__init__()
         self.i = i
         self.grid_size = grid_size
-        self.cell_size = cell_size
         self.action_space = spaces.Discrete(4)
         self.observation_space = spaces.Box(
             low=0, high=255, shape=(grid_size[0], grid_size[1], 3), dtype=np.uint8
