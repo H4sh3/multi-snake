@@ -8,6 +8,7 @@ from gymnasium import spaces
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.env_checker import check_env
 
 import time
 import os
@@ -38,7 +39,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                     # print(f"Step {self.n_calls}: Mean reward: {mean_reward:.2f}")
                     
                     # Save the model if the reward is improved
-                    if mean_reward >= self.best_mean_reward:
+                    if mean_reward > 1 and mean_reward >= self.best_mean_reward:
                         self.best_mean_reward = mean_reward
                         print(f"New best reward! Saving model to {self.save_path} ts {self.num_timesteps}")
                         self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
@@ -55,7 +56,6 @@ class CustomCNN(BaseFeaturesExtractor):
 
     def __init__(self, observation_space: spaces.Dict, features_dim: int = 256, n_additional_inputs: int = 4):
         super().__init__(observation_space, features_dim)
-        extractors = {}
 
         # We assume CxHxW images (channels first)
         n_input_channels = observation_space["grid"].shape[0]
@@ -83,7 +83,6 @@ class CustomCNN(BaseFeaturesExtractor):
             nn.ReLU()
         )
 
-
     def forward(self, observations) -> th.Tensor:
         """
         Forward pass with additional inputs merged.
@@ -91,10 +90,9 @@ class CustomCNN(BaseFeaturesExtractor):
         :param additional_inputs: (th.Tensor) Additional inputs to be merged.
         :return: (th.Tensor) Output features.
         """
-        print(observations)
-        cnn_features = self.cnn(observations[0])
+        cnn_features = self.cnn(observations["grid"])
         # Concatenate CNN output with additional inputs
-        combined_features = th.cat([cnn_features, observations[1]], dim=1)
+        combined_features = th.cat([cnn_features, observations["food_direction"]], dim=1)
         return self.linear(combined_features)
 
 
@@ -125,7 +123,6 @@ class CustomPPO(PPO):
     #        )
 
     def forward(self, obs, deterministic=False):
-        print(obs)
         cnn_features = self.cnn(obs[0])
         # Concatenate CNN output with additional inputs
         combined_features = th.cat([cnn_features, obs[1]], dim=1)
@@ -141,6 +138,9 @@ class CustomPPO(PPO):
         return distribution.get_actions(deterministic=deterministic)
 
 def optimize_ppo():
+    x = SnakeEnvLarge()
+    check_env(x)
+    
     env = make_vec_env(SnakeEnvLarge, n_envs=32)
 
     Algo = CustomPPO
@@ -197,7 +197,6 @@ def optimize_ppo():
         obs, reward, done, _, info = env.step(int(action))
         if reward == 1:
             score += reward
-        # print(f"obs.shape1 {obs.shape}")
         env.render()
         time.sleep(1/20)
 

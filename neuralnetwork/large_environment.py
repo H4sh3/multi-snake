@@ -5,17 +5,21 @@ import random
 
 class SnakeEnvLarge(gym.Env):
     def __init__(self):
-        super().__init__()
+        super(SnakeEnvLarge, self).__init__()
         self.grid_size = (50, 50)
-        self.obersvation_size = (10, 10)
+        self.obersvation_size = (7, 7)
         self.action_space = spaces.Discrete(4)
 
         self.observation_space = spaces.Dict({
             "grid":spaces.Box(
                 low=0, high=255, shape=(self.obersvation_size[0], self.obersvation_size[1], 3), dtype=np.uint8
             ),
-            "food_direction":spaces.Discrete(4)
+            "food_direction": spaces.Box(
+                low=0, high=1.0, shape=(4,), dtype=np.int64  # Example array with 4 values
+            )
         })
+
+        self.keys = ["grid","food_direction"]
 
         self.snake = None
         self.food = None
@@ -85,27 +89,58 @@ class SnakeEnvLarge(gym.Env):
         return random.choice(empty_positions)
 
     def _get_observation(self):
-        grid = np.zeros((self.grid_size[0], self.grid_size[1], 3), dtype=np.uint8)
-        for x, y in self.snake:
-            grid[x, y] = [0, 255, 0]
-        grid[self.snake[0][0], self.snake[0][1]] = [0, 0, 255]
-        if self.food:
-            food_x, food_y = self.food
-            grid[food_x, food_y] = [255, 0, 0]
 
+        obs = 7 # space that snake can see aroud it self
+        grid = np.zeros((obs, obs, 3), dtype=np.uint8)
+
+        half = obs // 2
+
+        center = self.snake[0]
+
+        for xOff in range(-half,half+1,1):
+            for yOff in range(-half,half+1,1):
+                x = center[0] + xOff
+                y = center[1] + yOff
+
+                if x > self.grid_size[0]:
+                    grid[half+xOff, half+yOff] = [255,255,255]
+
+                if x < 0:
+                    grid[half+xOff, half+yOff] = [255,255,255]
+
+                if y > self.grid_size[1]:
+                    grid[half+xOff, half+yOff] = [255,255,255]
+
+                if y < 0:
+                    grid[half+xOff, half+yOff] = [255,255,255]
+
+                if (x,y) in self.snake:
+                    grid[half+xOff, half+yOff] = [0, 255, 0]
+
+                if self.food and (x,y) == self.food:
+                    grid[half+xOff, half+yOff] = [255, 0, 0]
+
+        # snake always in center
+        grid[0,0] = [0, 0, 255]
+                
         snake_x = self.snake[0][0]
         snake_y = self.snake[0][1]
         food_x = self.food[0]
         food_y = self.food[1]
+
         food_direction = None
-
         if food_x > snake_x and food_y > snake_y:
-            food_direction = [1,0,0,0]
+            food_direction = np.array([1,0,0,0], dtype=int)
         elif food_x < snake_x and food_y > snake_y:
-            food_direction = [0,1,0,0]
+            food_direction = np.array([0,1,0,0], dtype=int)
         elif food_x > snake_x and food_y < snake_y:
-            food_direction = [0,0,1,0]
+            food_direction = np.array([0,0,1,0], dtype=int)
         elif food_x < snake_x and food_y < snake_y:
-            food_direction = [0,0,0,1]
+            food_direction = np.array([0,0,0,1], dtype=int)
+        else:
+            food_direction = [0,0,0,0]
 
-        return (grid, food_direction)
+        return {
+            "grid": grid,
+            "food_direction": food_direction
+        }

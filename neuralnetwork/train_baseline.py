@@ -1,5 +1,6 @@
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.env_checker import check_env
 import torch as th
 import torch.nn as nn
 
@@ -69,9 +70,6 @@ class CustomCNN(BaseFeaturesExtractor):
         )
 
         # Compute shape by doing one forward pass
-        print(observation_space.sample().shape)
-        print(observation_space.sample())
-        exit()
         with th.no_grad():
             n_flatten = self.cnn(
                 th.as_tensor(observation_space.sample()[None]).float()
@@ -84,6 +82,7 @@ class CustomCNN(BaseFeaturesExtractor):
 
 def optimize_ppo():
     env = make_vec_env(SnakeEnv, n_envs=32)
+
 
     Algo = PPO
 

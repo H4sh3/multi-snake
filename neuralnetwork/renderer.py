@@ -7,7 +7,7 @@ class Renderer():
         self.grid_size = grid_size
         pygame.init()
         self.screen = pygame.display.set_mode(
-            (self.grid_size[1] * self.cell_size, self.grid_size[0] * self.cell_size)
+            (self.grid_size[0] * self.cell_size, self.grid_size[1] * self.cell_size)
         )
         pygame.display.set_caption("Snake Game")
         self.clock = pygame.time.Clock()

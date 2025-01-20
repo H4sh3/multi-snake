@@ -3,17 +3,15 @@ import torch as th
 import torch.nn as nn
 from gymnasium import spaces 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-from neuralnetwork.environment import SnakeEnv
+from large_environment import SnakeEnvLarge
 
 from renderer import Renderer
 
-# model_name = './checkpoints/15_01_2025/best_model_61.zip' # 8x8
-model_name = './checkpoints/16_01_2025_10by10/best_model_90_ts_82920000.zip'
-model_name = './checkpoints/16_01_2025_10by10/best_model_94_ts_104072000.zip'
+model_name = './checkpoints/large_18_01_2025_10by10/best_model_87_ts_8472000'
 
 model = PPO.load(model_name)
-env = SnakeEnv()
-renderer = Renderer()
+env = SnakeEnvLarge()
+renderer = Renderer(grid_size=(50,50), cell_size=15)
 
 obs = env.reset()[0]
 highscore = 0
