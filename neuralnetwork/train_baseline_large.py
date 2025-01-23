@@ -36,13 +36,10 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                 rewards = [info["episode"]["r"] for info in self.locals["infos"] if "episode" in info]
                 if len(rewards) > 0:
                     mean_reward = sum(rewards) / len(rewards)
-                    # print(f"Step {self.n_calls}: Mean reward: {mean_reward:.2f}")
+
+                    # always save on check
+                    self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
                     
-                    # Save the model if the reward is improved
-                    if mean_reward > 1 and mean_reward >= self.best_mean_reward:
-                        self.best_mean_reward = mean_reward
-                        print(f"New best reward! Saving model to {self.save_path} ts {self.num_timesteps}")
-                        self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
 
         return True
 
@@ -97,31 +94,6 @@ class CustomCNN(BaseFeaturesExtractor):
 
 
 class CustomPPO(PPO):
-    """
-    Custom Policy with a CNN and additional inputs.
-    """
-    #def __init__(self, policy, env, policy_kwargs,learning_rate,gamma,ent_coef,vf_coef,verbose,tensorboard_log,n_steps,clip_range,n_epochs,batch_size, **kwargs):
-    #    super(PPO, self).__init__(
-    #        policy=policy,
-    #        env=env,
-    #        policy_kwargs = policy_kwargs,
-    #        learning_rate = learning_rate,
-    #        gamma = gamma,
-    #        ent_coef = ent_coef,
-    #        vf_coef = vf_coef,
-    #        verbose = verbose,
-    #        tensorboard_log = tensorboard_log,
-    #        n_steps = n_steps,
-    #        #clip_range = clip_range,
-    #        #n_epochs = n_epochs,
-    #        #batch_size = batch_size,
-    #        gae_lambda = 0.95,
-    #        max_grad_norm = 0.5,
-    #        use_sde = False,
-    #        sde_sample_freq = -1,
-    #        **kwargs
-    #        )
-
     def forward(self, obs, deterministic=False):
         cnn_features = self.cnn(obs[0])
         # Concatenate CNN output with additional inputs
@@ -161,24 +133,24 @@ def optimize_ppo():
         vf_coef=0.5,
         verbose=1,
         tensorboard_log="./tensorboard_ppo_snake/",
-        n_steps=3072,
+        n_steps=1024*3,
         clip_range=0.25,
         n_epochs = 20,
         batch_size= 1024,
     )
-
-    save_path = "./checkpoints/large_18_01_2025_10by10"
+    
+    save_path = "./checkpoints/large_11by11_22_01_25"
 
     # continue training
-    #model_name = f'{save_path}/best_model_51_ts_18928000.zip'
-    #model = Algo.load(model_name)
-    #model.set_env(env)
+    # model_name = f'{save_path}/best_model_51_ts_18928000.zip'
+    # model = Algo.load(model_name)
+    # model.set_env(env)
 
     model_name = f'{save_path}/net'
 
     model.learn(
         total_timesteps=250_000_000,
-        callback = SaveOnBestTrainingRewardCallback(save_path=save_path,check_freq=250)
+        callback = SaveOnBestTrainingRewardCallback(save_path=save_path,check_freq=10000)
         )
     model.save(model_name)
 

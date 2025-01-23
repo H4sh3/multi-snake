@@ -43,13 +43,24 @@ class Renderer():
         self._draw_tail(tail, 0)
     
         if food:
-            food_rect = pygame.Rect(
-                food[1] * self.cell_size,
-                food[0] * self.cell_size,
-                self.cell_size,
-                self.cell_size,
-            )
-            pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
+
+            if isinstance(food, list):
+                for f in food:
+                    food_rect = pygame.Rect(
+                        f[1] * self.cell_size,
+                        f[0] * self.cell_size,
+                        self.cell_size,
+                        self.cell_size,
+                    )
+                    pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
+            else:
+                food_rect = pygame.Rect(
+                    food[1] * self.cell_size,
+                    food[0] * self.cell_size,
+                    self.cell_size,
+                    self.cell_size,
+                )
+                pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
 
         pygame.display.flip()
         self.clock.tick(120)

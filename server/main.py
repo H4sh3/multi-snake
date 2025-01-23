@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from socketio import AsyncServer, ASGIApp
 import asyncio
 from environment import GameEnvironment
-from backend.player import Direction
+from player import Direction
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,7 +17,6 @@ app.mount('/', socket_app)
 
 game_env = GameEnvironment()
 TICK_RATE = 10
-
 async def game_loop():
     while True:
         if game_env.game_active:
@@ -43,6 +42,7 @@ async def player_ready(sid):
     if sid in game_env.players:
         game_env.players[sid].ready = True
         if all(p.ready for p in game_env.players.values() if p.alive):
+            print("game started!")
             game_env.game_active = True
     await sio.emit('state_update', game_env.to_dict())
 
@@ -61,9 +61,6 @@ async def turn(sid, direction):
 @sio.on('disconnect')
 async def disconnect(sid):
     if sid in game_env.players:
-        player = game_env.players[sid]
-        for x, y in player.trail:
-            game_env.grid[y][x] = None
         del game_env.players[sid]
         await sio.emit('state_update', game_env.to_dict())
 

@@ -7,7 +7,7 @@ from large_environment import SnakeEnvLarge
 
 from renderer import Renderer
 
-model_name = './checkpoints/large_18_01_2025_10by10/best_model_87_ts_8472000'
+model_name = './checkpoints/large_21_01_2025_10by10/best_model_211_ts_18416000'
 
 model = PPO.load(model_name)
 env = SnakeEnvLarge()

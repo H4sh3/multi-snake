@@ -13,13 +13,14 @@ interface Player {
 }
 
 interface GameState {
-  grid: (string | null)[][];
+  gridSize: [number, number]; // width height
   players: Record<string, Player>;
   food: [number, number]; // Added food position
   active: boolean;
 }
 
-const socket = io('http://192.168.178.27:8000', {
+// const socket = io('http://192.168.178.27:8000', {
+const socket = io('http://127.0.0.1:8000', {
   autoConnect: false,
 });
 
@@ -72,8 +73,8 @@ const Game = () => {
     if (!ctx) return;
 
     const cellSize = 10;
-    canvas.width = gameState.grid[0].length * cellSize;
-    canvas.height = gameState.grid.length * cellSize;
+    canvas.width = gameState.gridSize[0] * cellSize;
+    canvas.height = gameState.gridSize[1] * cellSize;
 
     // Clear canvas
     ctx.fillStyle = '#000000';
@@ -81,14 +82,16 @@ const Game = () => {
 
     // Draw food
     const [foodX, foodY] = gameState.food;
-    ctx.fillStyle = '#FFFFFF'; // White color for food
+    ctx.fillStyle = '#00FF00'; // White color for food
     ctx.fillRect(foodX * cellSize, foodY * cellSize, cellSize, cellSize);
 
     // Draw players and their trails
     Object.values(gameState.players).forEach((player) => {
       // Draw the player's trail
       player.trail.forEach(([trailX, trailY]) => {
-        ctx.fillStyle = player.color;
+
+        ctx.fillStyle = '#0000FF'; // White color for food
+        // ctx.fillStyle = player.color;
         ctx.fillRect(trailX * cellSize, trailY * cellSize, cellSize, cellSize);
       });
 
