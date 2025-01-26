@@ -1,15 +1,18 @@
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import SubprocVecEnv
 import torch as th
 import torch.nn as nn
 
-from large_environment import SnakeEnvLarge
+from large_env_deep import SnakeEnvLarge
 from gymnasium import spaces 
-
+import optuna
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_checker import check_env
 
+
+from stable_baselines3.common.monitor import Monitor
 import time
 import os
 
@@ -30,17 +33,14 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         # Check the training reward every `check_freq` steps
-        if self.n_calls % self.check_freq == 0:
-            # Compute the mean reward
-            if True:#len(self.locals["infos"]) > 0 and "episode" in self.locals["infos"][0]:
-                rewards = [info["episode"]["r"] for info in self.locals["infos"] if "episode" in info]
-                if len(rewards) > 0:
-                    mean_reward = sum(rewards) / len(rewards)
 
-                    # always save on check
-                    self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
-                    
-
+        #if self.num_timesteps % self.check_freq == 0:
+        rewards = [info["episode"]["r"] for info in self.locals["infos"] if "episode" in info]
+        if len(rewards) > 0:
+            mean_reward = sum(rewards) / len(rewards)
+            if mean_reward >= self.best_mean_reward:
+                self.best_mean_reward = mean_reward
+                self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
         return True
 
 class CustomCNN(BaseFeaturesExtractor):
@@ -109,12 +109,19 @@ class CustomPPO(PPO):
         distribution, _ = self.forward(obs, deterministic=deterministic)
         return distribution.get_actions(deterministic=deterministic)
 
-def optimize_ppo():
+
+def make_env(seed):
+    def _f():
+        env = SnakeEnvLarge()
+        return env
+    return _f
+
+def optimize_ppo(trial=None):
     x = SnakeEnvLarge()
     check_env(x)
     
-    env = make_vec_env(SnakeEnvLarge, n_envs=32)
 
+    env = make_vec_env(SnakeEnvLarge, n_envs=64, vec_env_cls=SubprocVecEnv)
     Algo = CustomPPO
 
     policy_kwargs = dict(
@@ -123,23 +130,75 @@ def optimize_ppo():
     )
 
     # learned max for 8x8
-    model = Algo(
-        "MultiInputPolicy",
-        env,
-        policy_kwargs=policy_kwargs,
-        learning_rate=1e-4,
-        gamma=0.99,
-        ent_coef=0.01,
-        vf_coef=0.5,
-        verbose=1,
-        tensorboard_log="./tensorboard_ppo_snake/",
-        n_steps=1024*3,
-        clip_range=0.25,
-        n_epochs = 20,
-        batch_size= 1024,
-    )
+
+
+    if trial:
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        batch_size = trial.suggest_categorical("batch_size", [512, 1024, 1536])
+        gamma = trial.suggest_float("gamma", 0.9, 0.999)
+        vf_coef = trial.suggest_float("gamma", 0.9, 0.999)
+        ent_coef = trial.suggest_float("epsilon_decay", 0.4, 0.6)
+        n_steps = trial.suggest_int("replay_buffer_size", 1000, 5000)
+        n_epochs = trial.suggest_int("target_update_frequency", 10, 20)
+        clip_range = trial.suggest_float("trial.suggest_float", 0.10, 0.30)
     
-    save_path = "./checkpoints/large_11by11_22_01_25"
+        model = PPO(
+            "MultiInputPolicy", 
+            env,
+            policy_kwargs=policy_kwargs,
+            verbose=1,
+            tensorboard_log="./tensorboard_ppo_snake/",
+            learning_rate=learning_rate,
+            gamma=gamma,
+            ent_coef=ent_coef,
+            vf_coef=vf_coef,
+            n_steps=n_steps,
+            clip_range=clip_range,
+            n_epochs=n_epochs,
+            batch_size=batch_size,
+        )
+
+        filename = f"{learning_rate}_{batch_size}_{gamma}_{vf_coef}_{ent_coef}_{n_steps}_{n_epochs}_{clip_range}"
+    else:
+        model = Algo(
+            "MultiInputPolicy",
+            env,
+            policy_kwargs=policy_kwargs,
+            learning_rate=1e-4,
+            gamma=0.99,
+            ent_coef=0.01,
+            vf_coef=0.5,
+            verbose=1,
+            tensorboard_log="./tensorboard_ppo_snake/",
+            n_steps=1024*3,
+            clip_range=0.25,
+            n_epochs = 20,
+            batch_size= 1024,
+        )
+
+        model = Algo(
+            "MultiInputPolicy",
+            env,
+            policy_kwargs=policy_kwargs,
+            learning_rate=1e-4,
+            gamma=0.95,  # Adjusted gamma
+            ent_coef=0.01,
+            vf_coef=0.6,  # Adjusted value function coefficient
+            n_steps=4096,
+            clip_range=0.2,
+            n_epochs=15,
+            batch_size=512,
+            verbose=1,
+            tensorboard_log="./tensorboard_ppo_snake/"
+        )
+        filename = "ppo_26_3072_2_v5"
+
+
+
+    
+    print(f"training {filename}")
+
+    save_path = f"./checkpoints/optuna_{filename}"
 
     # continue training
     # model_name = f'{save_path}/best_model_51_ts_18928000.zip'
@@ -148,11 +207,17 @@ def optimize_ppo():
 
     model_name = f'{save_path}/net'
 
+    callback = SaveOnBestTrainingRewardCallback(save_path=save_path,check_freq=10000)
+
     model.learn(
-        total_timesteps=250_000_000,
-        callback = SaveOnBestTrainingRewardCallback(save_path=save_path,check_freq=10000)
+        total_timesteps=500_000_000,
+        callback = callback
         )
+
     model.save(model_name)
+
+    return callback.best_mean_reward
+
 
     del model # remove to demonstrate saving and loading
 
@@ -182,4 +247,6 @@ def optimize_ppo():
 
 
 if __name__ == "__main__":
+    # study = optuna.create_study(direction="maximize")  # Maximize average reward
+    # study.optimize(optimize_ppo, n_trials=10)
     optimize_ppo()

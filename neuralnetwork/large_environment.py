@@ -16,7 +16,8 @@ class SnakeEnvLarge(gym.Env):
         super(SnakeEnvLarge, self).__init__()
         self.grid_size = (50, 50)
         # self.obersvation_size = (7, 7)
-        self.obersvation_size = (11, 11)
+        # self.obersvation_size = (11, 11)
+        self.obersvation_size = (5, 5)
         self.action_space = spaces.Discrete(4)
 
         self.observation_space = spaces.Dict({
@@ -44,7 +45,7 @@ class SnakeEnvLarge(gym.Env):
         self.snake = []
         startX = random.randint(5,self.grid_size[0]-5)
         startY = random.randint(5,self.grid_size[1]-5)
-        for x in range(3):
+        for x in range(20):
             self.snake.append((startX - x, startY))
 
         self.direction = 1
@@ -56,24 +57,32 @@ class SnakeEnvLarge(gym.Env):
         return self._get_observation(), {}
 
     def step(self, action):
-        if action in [0, 1, 2, 3]:
+
+        illegal_action =  self.direction == 0 and action == 2 or self.direction == 2 and action == 0 or self.direction == 1 and action == 3 or self.direction == 3 and action == 1
+
+
+        if illegal_action:
+            reward = -1
+
+        if action in [0, 1, 2, 3] and not illegal_action:
             self.direction = action
 
         head = self.snake[0]
-        if self.direction == 0:
+
+        if self.direction == 0: # left
             new_head = (head[0] - 1, head[1])
-        elif self.direction == 1:
+        elif self.direction == 1: # down
             new_head = (head[0], head[1] + 1)
-        elif self.direction == 2:
+        elif self.direction == 2: # right
             new_head = (head[0] + 1, head[1])
-        elif self.direction == 3:
+        elif self.direction == 3: # up
             new_head = (head[0], head[1] - 1)
 
-        if (
-            new_head[0] < 0 or new_head[0] >= self.grid_size[0]
-            or new_head[1] < 0 or new_head[1] >= self.grid_size[1]
-            or new_head in self.snake
-        ):
+        xOut = new_head[0] < 0 or new_head[0] >= self.grid_size[0]
+        yOut = new_head[1] < 0 or new_head[1] >= self.grid_size[1]
+        body = new_head in self.snake
+
+        if (xOut or yOut or body):
             self.done = True
             reward = -1
         else:
@@ -84,6 +93,7 @@ class SnakeEnvLarge(gym.Env):
                 reward = 1
                 self.score += 1
                 if not self.food:
+                    print("no more food!")
                     self.done = True
             else:
                 self.snake.pop()

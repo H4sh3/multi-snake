@@ -21,8 +21,8 @@ class Renderer():
         body = []
         for i, segment in enumerate(snake):
             rect = pygame.Rect(
-                segment[1] * self.cell_size,
                 segment[0] * self.cell_size,
+                segment[1] * self.cell_size,
                 self.cell_size,
                 self.cell_size,
             )
@@ -43,20 +43,21 @@ class Renderer():
         self._draw_tail(tail, 0)
     
         if food:
-
-            if isinstance(food, list):
+            print(food)
+            
+            if isinstance(food, list) or isinstance(food, set):
                 for f in food:
                     food_rect = pygame.Rect(
-                        f[1] * self.cell_size,
                         f[0] * self.cell_size,
+                        f[1] * self.cell_size,
                         self.cell_size,
                         self.cell_size,
                     )
                     pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
             else:
                 food_rect = pygame.Rect(
-                    food[1] * self.cell_size,
                     food[0] * self.cell_size,
+                    food[1] * self.cell_size,
                     self.cell_size,
                     self.cell_size,
                 )
@@ -126,3 +127,7 @@ class Renderer():
 
     def close(self):
         pygame.quit()
+
+
+    def save(self, n, score):
+        pygame.image.save( self.screen, f'images/{score}_{n}_.png' )
