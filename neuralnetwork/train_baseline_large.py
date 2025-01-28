@@ -1,20 +1,18 @@
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import SubprocVecEnv
-import torch as th
-import torch.nn as nn
-
-from large_env_deep import SnakeEnvLarge
-from gymnasium import spaces 
-import optuna
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.env_checker import check_env
-
-
-from stable_baselines3.common.monitor import Monitor
+import json
 import time
 import os
+
+import torch as th
+import torch.nn as nn
+from gymnasium import spaces
+
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3 import PPO
+
+from large_env_deep import SnakeEnvLarge
+
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """
@@ -89,7 +87,7 @@ class CustomCNN(BaseFeaturesExtractor):
         """
         cnn_features = self.cnn(observations["grid"])
         # Concatenate CNN output with additional inputs
-        combined_features = th.cat([cnn_features, observations["food_direction"]], dim=1)
+        combined_features = th.cat([cnn_features, observations["additional_inputs"]], dim=1)
         return self.linear(combined_features)
 
 
@@ -116,12 +114,15 @@ def make_env(seed):
         return env
     return _f
 
-def optimize_ppo(trial=None):
-    x = SnakeEnvLarge()
-    check_env(x)
-    
+def store_settings(settings, save_path):
 
-    env = make_vec_env(SnakeEnvLarge, n_envs=64, vec_env_cls=SubprocVecEnv)
+    os.makedirs(save_path, exist_ok=True)
+
+    with open(f"{save_path}/config.json", "w+") as f:
+        f.write(json.dumps(settings,indent=2))
+
+def optimize_ppo(trial=None):
+    env = make_vec_env(SnakeEnvLarge, n_envs=64)#, vec_env_cls=SubprocVecEnv)
     Algo = CustomPPO
 
     policy_kwargs = dict(
@@ -130,8 +131,6 @@ def optimize_ppo(trial=None):
     )
 
     # learned max for 8x8
-
-
     if trial:
         learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
         batch_size = trial.suggest_categorical("batch_size", [512, 1024, 1536])
@@ -158,7 +157,7 @@ def optimize_ppo(trial=None):
             batch_size=batch_size,
         )
 
-        filename = f"{learning_rate}_{batch_size}_{gamma}_{vf_coef}_{ent_coef}_{n_steps}_{n_epochs}_{clip_range}"
+        foldername = f"{learning_rate}_{batch_size}_{gamma}_{vf_coef}_{ent_coef}_{n_steps}_{n_epochs}_{clip_range}"
     else:
         model = Algo(
             "MultiInputPolicy",
@@ -176,29 +175,52 @@ def optimize_ppo(trial=None):
             batch_size= 1024,
         )
 
+        config = {
+            "verbose":1,
+            "learning_rate":1e-3,
+            "gamma":0.99,
+            "ent_coef":0.01,
+            "vf_coef":0.6,
+            "n_steps":1024,
+            "clip_range":0.2,
+            "n_epochs":15,
+            "batch_size":512,
+        }
+
+        config = {
+            "verbose": 1,
+            "learning_rate": 5e-3,
+            "gamma": 0.95,
+            "ent_coef": 0.01,
+            "vf_coef": 0.6,
+            "n_steps": 1024*3,
+            "clip_range": 0.2,
+            "n_epochs": 15,
+            "batch_size": 512,
+        }
+
         model = Algo(
             "MultiInputPolicy",
             env,
             policy_kwargs=policy_kwargs,
-            learning_rate=1e-4,
-            gamma=0.95,  # Adjusted gamma
-            ent_coef=0.01,
-            vf_coef=0.6,  # Adjusted value function coefficient
-            n_steps=4096,
-            clip_range=0.2,
-            n_epochs=15,
-            batch_size=512,
+            tensorboard_log="./tensorboard_ppo_snake/",
             verbose=1,
-            tensorboard_log="./tensorboard_ppo_snake/"
+            learning_rate=config["learning_rate"], 
+            gamma=config["gamma"], 
+            ent_coef=config["ent_coef"], 
+            vf_coef=config["vf_coef"], 
+            n_steps=config["n_steps"], 
+            clip_range=config["clip_range"], 
+            n_epochs=config["n_epochs"], 
+            batch_size=config["batch_size"], 
         )
-        filename = "ppo_26_3072_2_v5"
-
-
-
+        foldername = int(time.time()*1000000)
     
-    print(f"training {filename}")
+    print(f"training {foldername}")
 
-    save_path = f"./checkpoints/optuna_{filename}"
+    save_path = f"./checkpoints/optuna_{foldername}"
+
+    store_settings(config,save_path)
 
     # continue training
     # model_name = f'{save_path}/best_model_51_ts_18928000.zip'
@@ -210,7 +232,7 @@ def optimize_ppo(trial=None):
     callback = SaveOnBestTrainingRewardCallback(save_path=save_path,check_freq=10000)
 
     model.learn(
-        total_timesteps=500_000_000,
+        total_timesteps=50_000_000,
         callback = callback
         )
 

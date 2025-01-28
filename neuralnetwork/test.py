@@ -1,5 +1,5 @@
 import time
-from large_environment import SnakeEnvLarge
+from large_env_deep import SnakeEnvLarge
 from renderer import Renderer
 
 r = Renderer(grid_size=(50,50))
@@ -13,6 +13,10 @@ env.step(0)
 env.step(0)
 env.step(0)
 
-r.render(env.snake,[[0,5]])
+obs = env._get_observation()
+print(obs)
 
-time.sleep(3)
+
+r.render(env.snake,[[0,5]], obs)
+
+time.sleep(5)

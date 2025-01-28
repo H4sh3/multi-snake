@@ -12,59 +12,77 @@ class Renderer():
         pygame.display.set_caption("Snake Game")
         self.clock = pygame.time.Clock()
 
+    def render_grid(self, grid_data, cell_size=50):
+        """
+        Render the grid from the numpy array
+        """
+        grid = grid_data['grid']
+        height, width, _ = grid.shape
+        
+        # Ensure screen is big enough
+        screen_width = width * cell_size
+        screen_height = height * cell_size
+        
+        # Draw each cell
+        for y in range(height):
+            for x in range(width):
+                color = tuple(grid[y, x])  # Get RGB values
+                rect = pygame.Rect(x * cell_size, y * cell_size, cell_size, cell_size)
+                pygame.draw.rect(self.screen, color, rect)
 
-    def render(self,snake,food):
+    def render(self,snake,food,obs):
         self.screen.fill((0, 0, 0))
 
-        head = None
-        tail = None
-        body = []
-        for i, segment in enumerate(snake):
-            rect = pygame.Rect(
-                segment[0] * self.cell_size,
-                segment[1] * self.cell_size,
-                self.cell_size,
-                self.cell_size,
-            )
+        if True:
+            head = None
+            tail = None
+            body = []
+            for i, segment in enumerate(snake):
+                rect = pygame.Rect(
+                    segment[0] * self.cell_size,
+                    segment[1] * self.cell_size,
+                    self.cell_size,
+                    self.cell_size,
+                )
 
-            # Determine segment types
-            if i == 0:  # Head
-                head = rect
-            elif i == len(snake) - 1:  # Tail
-                tail = rect
-            else:
-                body.append((rect.centerx,rect.centery))
+                # Determine segment types
+                if i == 0:  # Head
+                    head = rect
+                elif i == len(snake) - 1:  # Tail
+                    tail = rect
+                else:
+                    body.append((rect.centerx,rect.centery))
 
-        body.insert(0,(head.centerx,head.centery))
-        body.append((tail.centerx,tail.centery))
-        pygame.draw.lines(self.screen, (0, 255, 0), False, body, width=self.cell_size//2)
+            body.insert(0,(head.centerx,head.centery))
+            body.append((tail.centerx,tail.centery))
+            pygame.draw.lines(self.screen, (0, 255, 0), False, body, width=self.cell_size//2)
 
-        self._draw_head(head, 0)
-        self._draw_tail(tail, 0)
-    
-        if food:
-            print(food)
-            
-            if isinstance(food, list) or isinstance(food, set):
-                for f in food:
+            self._draw_head(head, 0)
+            self._draw_tail(tail, 0)
+        
+            if food:
+                if isinstance(food, list) or isinstance(food, set):
+                    for f in food:
+                        food_rect = pygame.Rect(
+                            f[0] * self.cell_size,
+                            f[1] * self.cell_size,
+                            self.cell_size,
+                            self.cell_size,
+                        )
+                        pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
+                else:
                     food_rect = pygame.Rect(
-                        f[0] * self.cell_size,
-                        f[1] * self.cell_size,
+                        food[0] * self.cell_size,
+                        food[1] * self.cell_size,
                         self.cell_size,
                         self.cell_size,
                     )
                     pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
-            else:
-                food_rect = pygame.Rect(
-                    food[0] * self.cell_size,
-                    food[1] * self.cell_size,
-                    self.cell_size,
-                    self.cell_size,
-                )
-                pygame.draw.rect(self.screen, (255, 0, 0), food_rect)
+        else:
+            self.render_grid(obs)
 
         pygame.display.flip()
-        self.clock.tick(120)
+        self.clock.tick(50)
 
     def _draw_head(self, rect, index):
         pygame.draw.rect(self.screen, (0, 255, 0), rect)  # Bright green for head
