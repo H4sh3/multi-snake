@@ -31,7 +31,7 @@ class SnakeEnvLarge(gym.Env):
         self.snake = None
         self.snake_set = None
         self.food = None
-        self.num_food = 50
+        self.num_food = 1
 
         self.done = False
         self.direction = None
@@ -111,7 +111,7 @@ class SnakeEnvLarge(gym.Env):
         # Check for collisions
         killed = self.is_killed(new_head)
 
-        reward = 0
+        reward = 0.1
         if killed:
             self.done = True
             reward = -1

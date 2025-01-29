@@ -62,6 +62,8 @@ class CustomCNN(BaseFeaturesExtractor):
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
             nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(),
             nn.Flatten(),
         )
 
@@ -189,7 +191,7 @@ def optimize_ppo(trial=None):
 
         config = {
             "verbose": 1,
-            "learning_rate": 5e-3,
+            "learning_rate": 1e-4,
             "gamma": 0.95,
             "ent_coef": 0.01,
             "vf_coef": 0.6,

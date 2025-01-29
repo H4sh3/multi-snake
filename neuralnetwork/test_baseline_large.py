@@ -7,7 +7,7 @@ from large_env_deep import SnakeEnvLarge
 from renderer import Renderer
 import time
 
-model_name = './checkpoints/optuna_1738094466442004/best_model_195_ts_2777152'
+model_name = './checkpoints/optuna_1738175735722738/best_model_313_ts_10780992'
 
 model = PPO.load(model_name)
 env = SnakeEnvLarge()
@@ -22,9 +22,7 @@ total_score = 0
 
 # Initialize a list to store the last 15 moves
 replay_buffer = []
-
 n = 0
-
 
 while True:
     action, _ = model.predict(obs)
