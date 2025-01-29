@@ -11,7 +11,7 @@ def sort_by_distance(x, y, positions):
     return sorted(positions, key=distance)
 
 class SnakeEnvLarge(gym.Env):
-    def __init__(self):
+    def __init__(self, num_food=5):
         super(SnakeEnvLarge, self).__init__()
         self.grid_size = (20, 20)
         self.obersvation_size = (11, 11)
@@ -31,7 +31,7 @@ class SnakeEnvLarge(gym.Env):
         self.snake = None
         self.snake_set = None
         self.food = None
-        self.num_food = 1
+        self.num_food = num_food
 
         self.done = False
         self.direction = None

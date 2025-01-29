@@ -5,12 +5,11 @@ from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from large_env_deep import SnakeEnvLarge
 from renderer import Renderer
-import time
 
-model_name = './checkpoints/optuna_1738175735722738/best_model_313_ts_10780992'
+model_name = './checkpoints/optuna_1738175710613864/best_model_289_ts_4707328'
 
 model = PPO.load(model_name)
-env = SnakeEnvLarge()
+env = SnakeEnvLarge(num_food=50)
 renderer = Renderer(grid_size=(20,20), cell_size=50)
 
 obs = env.reset()[0]
@@ -68,8 +67,6 @@ while True:
         renderer.render(env.snake, env.food, obs)
         renderer.save(n,score)
         # time.sleep(6)
-        print(f"Final Score: {score}")
-        print(f"Total Steps: {step}")
         games_played += 1
         total_score += score
 
