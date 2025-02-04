@@ -36,7 +36,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         rewards = [info["episode"]["r"] for info in self.locals["infos"] if "episode" in info]
         if len(rewards) > 0:
             mean_reward = sum(rewards) / len(rewards)
-            if mean_reward >= self.best_mean_reward:
+            if mean_reward >= self.best_mean_reward * 0.66:
                 self.best_mean_reward = mean_reward
                 self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
         return True
