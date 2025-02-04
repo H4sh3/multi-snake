@@ -11,8 +11,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3 import PPO
 
-from large_env_deep import SnakeEnvLarge
-
+from env_3d_v2 import SnakeEnvLarge
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """
@@ -42,55 +41,52 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         return True
 
 class CustomCNN(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of units for the last layer.
-    :param n_additional_inputs: (int) Number of additional inputs to be merged.
-    """
-
     def __init__(self, observation_space: spaces.Dict, features_dim: int = 256, n_additional_inputs: int = 4):
         super().__init__(observation_space, features_dim)
-
-        # We assume CxHxW images (channels first)
-        n_input_channels = observation_space["grid"].shape[0]
-        # Define CNN layers
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 16, kernel_size=3, stride=1, padding=0),
+        
+        # Get grid dimensions from observation space
+        grid_shape = observation_space["grid"].shape  # (T, H, W, C)
+        self.frame_stack = grid_shape[0]
+        in_channels = grid_shape[-1]  # 3 color channels
+        
+        # Adjusted 3D CNN architecture
+        self.cnn3d = nn.Sequential(
+            # Input shape: (batch, C, T, H, W)
+            nn.Conv3d(in_channels, 16, kernel_size=(1, 3, 3), padding=(0, 1, 1)),
             nn.ReLU(),
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=0),
+            nn.MaxPool3d((1, 2, 2)),  # Output: (16, 4, 5, 5)
+            
+            nn.Conv3d(16, 32, kernel_size=(1, 3, 3), padding=(0, 1, 1)),
+            nn.ReLU(),  # Output: (32, 4, 5, 5)
+            
+            nn.Conv3d(32, 64, kernel_size=(4, 3, 3), padding=(0, 1, 1)),  # Temporal convolution
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.Flatten(),
+            nn.Flatten()
         )
 
-        # Compute shape by doing one forward pass
+        # Compute output shape
         with th.no_grad():
-            n_flatten = self.cnn(
-                th.as_tensor(observation_space["grid"].sample()[None]).float()
-            ).shape[1]
+            sample_grid = th.as_tensor(observation_space["grid"].sample()[None]).float()
+            sample_grid = sample_grid.permute(0, 4, 1, 2, 3)  # (B, C, T, H, W)
+            n_flatten = self.cnn3d(sample_grid).shape[1]
 
-        # Define linear layers
-        # Combine flattened CNN output with additional inputs
+        # Adjusted linear layer
         self.linear = nn.Sequential(
             nn.Linear(n_flatten + n_additional_inputs, features_dim),
             nn.ReLU()
         )
 
     def forward(self, observations) -> th.Tensor:
-        """
-        Forward pass with additional inputs merged.
-        :param observations: (th.Tensor) Image-based observations.
-        :param additional_inputs: (th.Tensor) Additional inputs to be merged.
-        :return: (th.Tensor) Output features.
-        """
-        cnn_features = self.cnn(observations["grid"])
-        # Concatenate CNN output with additional inputs
-        combined_features = th.cat([cnn_features, observations["additional_inputs"]], dim=1)
-        return self.linear(combined_features)
+        # Process grid observation
+        grid = observations["grid"].float().permute(0, 4, 1, 2, 3)  # (B, C, T, H, W)
+        cnn_features = self.cnn3d(grid)
+        
+        # Process additional inputs
+        additional_features = observations["additional_inputs"].float()
+        
+        # Concatenate and process
+        combined = th.cat([cnn_features, additional_features], dim=1)
+        return self.linear(combined)
 
 
 class CustomPPO(PPO):
@@ -129,7 +125,10 @@ def optimize_ppo(trial=None):
 
     policy_kwargs = dict(
         features_extractor_class=CustomCNN,
-        features_extractor_kwargs=dict(features_dim=4),
+        features_extractor_kwargs=dict(
+            features_dim=256,
+            n_additional_inputs=4
+        )
     )
 
     # learned max for 8x8
@@ -195,7 +194,7 @@ def optimize_ppo(trial=None):
             "gamma": 0.95,
             "ent_coef": 0.01,
             "vf_coef": 0.6,
-            "n_steps": 1024*4,
+            "n_steps": 1024*2,
             "clip_range": 0.2,
             "n_epochs": 15,
             "batch_size": 1024,

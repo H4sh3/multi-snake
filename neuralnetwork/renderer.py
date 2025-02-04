@@ -30,7 +30,7 @@ class Renderer():
                 rect = pygame.Rect(x * cell_size, y * cell_size, cell_size, cell_size)
                 pygame.draw.rect(self.screen, color, rect)
 
-    def render(self,snake,food,obs):
+    def render(self,snake,food,obs,obstacles=None):
         self.screen.fill((0, 0, 0))
 
         head = None
@@ -56,6 +56,16 @@ class Renderer():
         body.append((tail.centerx,tail.centery))
         pygame.draw.lines(self.screen, (0, 255, 0), False, body, width=self.cell_size//2)
 
+        if obstacles:
+            for obstacle in obstacles:
+                food_rect = pygame.Rect(
+                    obstacle[0] * self.cell_size,
+                    obstacle[1] * self.cell_size,
+                    self.cell_size,
+                    self.cell_size,
+                )
+                pygame.draw.rect(self.screen, (255, 0, 255), food_rect)
+
         self._draw_head(head, 0)
         self._draw_tail(tail, 0)
     
@@ -80,11 +90,11 @@ class Renderer():
 
 
                 
-        self.render_grid(obs)
+        # self.render_grid(obs)
 
         pygame.display.flip()
         # self.clock.tick(50)
-        self.clock.tick(1)
+        self.clock.tick(120)
 
     def _draw_head(self, rect, index):
         pygame.draw.rect(self.screen, (0, 255, 0), rect)  # Bright green for head

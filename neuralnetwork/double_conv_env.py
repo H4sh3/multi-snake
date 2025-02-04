@@ -11,22 +11,29 @@ def sort_by_distance(x, y, positions):
     return sorted(positions, key=distance)
 
 class SnakeEnvLarge(gym.Env):
-    def __init__(self, num_food=5):
+
+    def __init__(self, num_food=50):
         super(SnakeEnvLarge, self).__init__()
-        self.grid_size = (20, 20)
+        self.grid_size = (50, 50)
         self.obersvation_size = (11, 11)
+        self.low_res_factor = 5  # Adjust this factor as needed
+        self.low_res_width = self.grid_size[0] // self.low_res_factor
+        self.low_res_height = self.grid_size[1] // self.low_res_factor
         self.action_space = spaces.Discrete(3)  # Only 3 actions: rotate left (0) and rotate right (1) or do nothing
 
         self.observation_space = spaces.Dict({
             "grid": spaces.Box(
                 low=0, high=255, shape=(self.obersvation_size[0], self.obersvation_size[1], 3), dtype=np.uint8
             ),
+            "low_res_grid": spaces.Box(
+                low=0, high=255, shape=(self.low_res_width, self.low_res_height, 3), dtype=np.uint8
+            ),
             "additional_inputs": spaces.Box(
                 low=0, high=1, shape=(4,), dtype=np.int64
             ),
         })
 
-        self.keys = ["grid", "additional_inputs"]
+        self.keys = ["grid","low_res_grid",  "additional_inputs"]
 
         self.snake = None
         self.snake_set = None
@@ -38,8 +45,9 @@ class SnakeEnvLarge(gym.Env):
         self.score = 0
         self.step_cnt = 0
 
+
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
+        super().reset(seed=random.randint(1000,1000000))
         self.snake = []
         self.snake_set = set()
         startX = random.randint(5, self.grid_size[0]-5)
@@ -223,7 +231,47 @@ class SnakeEnvLarge(gym.Env):
         else:
             food_direction = np.zeros(4, dtype=np.int64)
 
+        # Existing code to generate the local grid (grid) and food_direction...
+
+        # Generate low-resolution grid
+        low_res_grid = np.zeros((self.low_res_width, self.low_res_height, 3), dtype=np.uint8)
+        for i in range(self.low_res_width):
+            for j in range(self.low_res_height):
+                x_start = i * self.low_res_factor
+                x_end = x_start + self.low_res_factor
+                y_start = j * self.low_res_factor
+                y_end = y_start + self.low_res_factor
+
+                has_head = False
+                has_food = False
+                has_body = False
+
+                for x in range(x_start, x_end):
+                    for y in range(y_start, y_end):
+                        if (x, y) == self.snake[0]:
+                            has_head = True
+                        elif (x, y) in self.snake_set:
+                            has_body = True
+                        elif (x, y) in self.food:
+                            has_food = True
+
+                if has_head:
+                    color = [0, 0, 255]  # Blue for head
+                elif has_food:
+                    color = [255, 0, 0]  # Red for food
+                elif has_body:
+                    color = [0, 255, 0]  # Green for body
+                else:
+                    color = [0, 0, 0]     # Black for empty
+
+                low_res_grid[i, j] = color
+
+        # Optional: Rotate low_res_grid to align with the snake's direction
+        rotation_map = {0: 3, 1: 0, 2: 1, 3: 2}
+        low_res_grid = np.rot90(low_res_grid, k=rotation_map[self.direction])
+
         return {
             "grid": grid,
+            "low_res_grid": low_res_grid,
             "additional_inputs": food_direction
         }

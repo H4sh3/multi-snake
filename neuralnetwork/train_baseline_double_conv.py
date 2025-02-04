@@ -11,7 +11,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3 import PPO
 
-from large_env_deep import SnakeEnvLarge
+from double_conv_env import SnakeEnvLarge
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
@@ -41,57 +41,70 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                 self.model.save(os.path.join(self.save_path, f"best_model_{int(mean_reward)}_ts_{self.num_timesteps}"))
         return True
 
-class CustomCNN(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of units for the last layer.
-    :param n_additional_inputs: (int) Number of additional inputs to be merged.
-    """
+import torch as th
+import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
+import torch as th
+import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+
+class CustomCNN(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Dict, features_dim: int = 256, n_additional_inputs: int = 4):
         super().__init__(observation_space, features_dim)
 
-        # We assume CxHxW images (channels first)
-        n_input_channels = observation_space["grid"].shape[0]
-        # Define CNN layers
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 16, kernel_size=3, stride=1, padding=0),
+        # Local CNN branch (11x11 grid)
+        self.cnn_local = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, stride=1),  # Input channels = 3 (RGB)
             nn.ReLU(),
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=0),
+            nn.Conv2d(16, 32, kernel_size=3, stride=1),
             nn.ReLU(),
             nn.Flatten(),
         )
 
-        # Compute shape by doing one forward pass
-        with th.no_grad():
-            n_flatten = self.cnn(
-                th.as_tensor(observation_space["grid"].sample()[None]).float()
-            ).shape[1]
+        # Global CNN branch (10x10 low-res grid)
+        self.cnn_global = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, stride=1),  # Input channels = 3 (RGB)
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
 
-        # Define linear layers
-        # Combine flattened CNN output with additional inputs
+        # Calculate output dimensions
+        with th.no_grad():
+            # Test shape conversion for local grid
+            sample_local = th.randn(1, *observation_space["grid"].shape)  # (1, 11, 11, 3)
+            local_out = self.cnn_local(sample_local)  # Convert to (1, 3, 11, 11)
+            local_dim = local_out.shape[1]
+            
+            # Test shape conversion for global grid
+            sample_global = th.randn(1, *observation_space["low_res_grid"].shape)  # (1, 10, 10, 3)
+            global_out = self.cnn_global(sample_global)  # Convert to (1, 3, 10, 10)
+            global_dim = global_out.shape[1]
+
+        # Combined linear layer
         self.linear = nn.Sequential(
-            nn.Linear(n_flatten + n_additional_inputs, features_dim),
+            nn.Linear(local_dim + global_dim + n_additional_inputs, features_dim),
             nn.ReLU()
         )
 
     def forward(self, observations) -> th.Tensor:
-        """
-        Forward pass with additional inputs merged.
-        :param observations: (th.Tensor) Image-based observations.
-        :param additional_inputs: (th.Tensor) Additional inputs to be merged.
-        :return: (th.Tensor) Output features.
-        """
-        cnn_features = self.cnn(observations["grid"])
-        # Concatenate CNN output with additional inputs
-        combined_features = th.cat([cnn_features, observations["additional_inputs"]], dim=1)
-        return self.linear(combined_features)
-
+        # Input shape is (N, H, W, C)
+        # Need to convert to (N, C, H, W)
+        local_input = observations["grid"].float()  # Convert to (N, C, H, W)
+        global_input = observations["low_res_grid"].float()  # Convert to (N, C, H, W)
+        
+        local_features = self.cnn_local(local_input)
+        global_features = self.cnn_global(global_input)
+        
+        combined = th.cat([
+            local_features,
+            global_features,
+            observations["additional_inputs"].float()
+        ], dim=1)
+        
+        return self.linear(combined)
 
 class CustomPPO(PPO):
     def forward(self, obs, deterministic=False):
@@ -161,41 +174,13 @@ def optimize_ppo(trial=None):
 
         foldername = f"{learning_rate}_{batch_size}_{gamma}_{vf_coef}_{ent_coef}_{n_steps}_{n_epochs}_{clip_range}"
     else:
-        model = Algo(
-            "MultiInputPolicy",
-            env,
-            policy_kwargs=policy_kwargs,
-            learning_rate=1e-4,
-            gamma=0.99,
-            ent_coef=0.01,
-            vf_coef=0.5,
-            verbose=1,
-            tensorboard_log="./tensorboard_ppo_snake/",
-            n_steps=1024*3,
-            clip_range=0.25,
-            n_epochs = 20,
-            batch_size= 1024,
-        )
-
-        config = {
-            "verbose":1,
-            "learning_rate":1e-3,
-            "gamma":0.99,
-            "ent_coef":0.01,
-            "vf_coef":0.6,
-            "n_steps":1024,
-            "clip_range":0.2,
-            "n_epochs":15,
-            "batch_size":512,
-        }
-
         config = {
             "verbose": 1,
             "learning_rate": 1e-4,
             "gamma": 0.95,
             "ent_coef": 0.01,
             "vf_coef": 0.6,
-            "n_steps": 1024*4,
+            "n_steps": 1024*3,
             "clip_range": 0.2,
             "n_epochs": 15,
             "batch_size": 1024,

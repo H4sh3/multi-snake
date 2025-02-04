@@ -11,7 +11,7 @@ def sort_by_distance(x, y, positions):
     return sorted(positions, key=distance)
 
 class SnakeEnvLarge(gym.Env):
-    def __init__(self, num_food=5):
+    def __init__(self, num_food=25, num_obstacles=3):
         super(SnakeEnvLarge, self).__init__()
         self.grid_size = (20, 20)
         self.obersvation_size = (11, 11)
@@ -31,12 +31,60 @@ class SnakeEnvLarge(gym.Env):
         self.snake = None
         self.snake_set = None
         self.food = None
+        self.obstacles = None
         self.num_food = num_food
+        self.num_obstacles = num_obstacles
 
         self.done = False
         self.direction = None
         self.score = 0
         self.step_cnt = 0
+
+    def _place_obstacles(self):
+        self.obstacles = set()
+        existing = self.snake_set.copy()
+        
+        for _ in range(self.num_obstacles):
+            length = random.randint(2, 5)
+            placed = False
+            attempts = 0
+            max_attempts = 1000
+            
+            while not placed and attempts < max_attempts:
+                # Random starting position
+                start_x = random.randint(0, self.grid_size[0]-1)
+                start_y = random.randint(0, self.grid_size[1]-1)
+                
+                # Random direction (horizontal or vertical)
+                direction = random.choice(['horizontal', 'vertical'])
+                
+                obstacle_positions = set()
+                valid = True
+                
+                # Generate obstacle positions
+                for i in range(length):
+                    if direction == 'horizontal':
+                        pos = (start_x + i, start_y)
+                    else:
+                        pos = (start_x, start_y + i)
+                    
+                    # Check if position is valid
+                    if (pos[0] >= self.grid_size[0] or pos[1] >= self.grid_size[1] or
+                        pos in existing or pos in obstacle_positions):
+                        valid = False
+                        break
+                    
+                    obstacle_positions.add(pos)
+                
+                if valid:
+                    self.obstacles.update(obstacle_positions)
+                    existing.update(obstacle_positions)
+                    placed = True
+                
+                attempts += 1
+            
+            if not placed:
+                print(f"Could not place obstacle after {max_attempts} attempts")
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -50,14 +98,14 @@ class SnakeEnvLarge(gym.Env):
             self.snake_set.add(pos)
 
         self.direction = 1
+        self._place_obstacles()  # Place obstacles first
         self.food = set()
-        self._place_food()
+        self._place_food()  # Place food last
         self.done = False
         self.score = 0
         self.step_cnt = 0
 
         return self._get_observation(), {}
-    
 
     def direction_map(self):
         head = self.snake[0]
@@ -72,14 +120,14 @@ class SnakeEnvLarge(gym.Env):
         x_out = new_head[0] < 0 or new_head[0] >= self.grid_size[0]
         y_out = new_head[1] < 0 or new_head[1] >= self.grid_size[1]
         body_collision = new_head in self.snake_set
+        obstacle_collision = new_head in self.obstacles
 
-        return x_out or y_out or body_collision
+        return x_out or y_out or body_collision or obstacle_collision
 
     def step(self, action):
         if action not in [0, 1, 2]:
             print("action not in set!")
             exit()
-
 
         if action == 0: # rotate left
             if self.direction == 0: # left
@@ -131,11 +179,10 @@ class SnakeEnvLarge(gym.Env):
                 tail = self.snake.pop()
                 self.snake_set.remove(tail)
 
-
         return self._get_observation(), reward, self.done, False, {}
 
     def _place_food(self):
-        existing = self.snake_set.union(self.food)
+        existing = self.snake_set.union(self.food).union(self.obstacles)
         grid_area = self.grid_size[0] * self.grid_size[1]
         if len(existing) >= grid_area:
             return  # No space left
@@ -153,7 +200,7 @@ class SnakeEnvLarge(gym.Env):
                     placed = True
                 attempt += 1
             if not placed:
-                print("could not place!")
+                print("could not place food!")
                 break  # Could not place food
 
     def _get_observation(self):
@@ -165,11 +212,6 @@ class SnakeEnvLarge(gym.Env):
 
         # Find closest food efficiently
         closest_food = None
-        if self.food:
-            closest_food = min(self.food, key=lambda p: (p[0]-snake_x)**2 + (p[1]-snake_y)**2)
-            food_x, food_y = closest_food
-        else:
-            food_x, food_y = -1, -1  # Out of bounds
 
         # Precompute relative positions
         for xOff in range(-half, half + 1):
@@ -183,42 +225,36 @@ class SnakeEnvLarge(gym.Env):
                 if (world_x < 0 or world_x >= self.grid_size[0] or
                     world_y < 0 or world_y >= self.grid_size[1]):
                     grid[grid_x, grid_y] = [255, 255, 255]  # Boundary
+                elif (world_x, world_y) in self.obstacles:
+                    grid[grid_x, grid_y] = [128, 128, 128]  # Obstacles in gray
                 elif (world_x, world_y) in self.snake_set:
                     grid[grid_x, grid_y] = [0, 255, 0]      # Snake body
-                elif closest_food and (world_x, world_y) == (food_x, food_y):
+                elif (world_x, world_y) in self.food:
                     grid[grid_x, grid_y] = [255, 0, 0]      # Closest food
 
         # Snake head at center
         grid[half, half] = [0, 0, 255]
 
-
-        # DEEP EDIT?
         # Rotate grid based on snake's direction
-        # if self.direction != 1:  # If not facing down, rotate grid
-        #    grid = np.rot90(grid, k=self.direction - 1)
-
-        rotation_map = {0: 3, 1: 0, 2: 1, 3: 2}  # Left: 270°, Down: 0°, Right: 90°, Up: 180°
-        grid = np.rot90(grid, k=rotation_map[self.direction])
+        if self.direction != 1:  # If not facing down, rotate grid
+            grid = np.rot90(grid, k=self.direction - 1)
 
         # Determine food direction relative to snake's orientation
         if closest_food:
             dx = food_x - snake_x
             dy = food_y - snake_y
-
             if self.direction == 0:  # Facing left
-                dx_rel, dy_rel = -dy, dx
-            elif self.direction == 1:  # Facing down
-                dx_rel, dy_rel = dx, dy
+                dx, dy = -dy, dx
             elif self.direction == 2:  # Facing right
-                dx_rel, dy_rel = dy, -dx
+                dx, dy = dy, -dx
             elif self.direction == 3:  # Facing up
-                dx_rel, dy_rel = -dx, -dy
+                dx, dy = -dx, -dy
 
             food_direction = np.array([
-                int(dx_rel > 0 and dy_rel > 0),  # Bottom-right
-                int(dx_rel < 0 and dy_rel > 0),  # Bottom-left
-                int(dx_rel > 0 and dy_rel < 0),  # Top-right
-                int(dx_rel < 0 and dy_rel < 0)   # Top-left
+                int(dx > 0 and dy > 0),  # Bottom-right
+                int(dx < 0 and dy > 0),  # Bottom-left
+                int(dx > 0 and dy < 0),  # Top-right
+                int(dx < 0 and dy < 0)   # Top-left
             ], dtype=np.int64)
         else:
             food_direction = np.zeros(4, dtype=np.int64)

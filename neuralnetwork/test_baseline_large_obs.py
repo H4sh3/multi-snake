@@ -1,21 +1,18 @@
 from stable_baselines3 import PPO
 
-
-# from env_3d_v2 import SnakeEnvLarge
-# from large_env_deep import SnakeEnvLarge
-from double_conv_env import SnakeEnvLarge
+from large_env_deep import SnakeEnvLarge
+# from large_env_deep_collision import SnakeEnvLarge
 
 from renderer import Renderer
 import torch
 
-model_name = './checkpoints/optuna_1738613647526768/best_model_882_ts_1897152'
-model_name = './checkpoints/optuna_1738684306160470/best_model_809_ts_25499008'
+model_name = './checkpoints/optuna_1738613647526768/best_model_1622_ts_15468672'
 
 model = PPO.load(model_name)
 # model.eval()
-env = SnakeEnvLarge(num_food=5)
+env = SnakeEnvLarge(num_food=50, num_obstacles=3)
 env.reset()
-renderer = Renderer(grid_size=(50,50), cell_size=25)
+renderer = Renderer(grid_size=(20,20), cell_size=50)
 
 highscore = 0
 score = 0
@@ -50,7 +47,7 @@ while True:
 
     # renderer manages fps with pygame
     # renderer.render(env.snake, env.food, obs)
-    renderer.render(env.snake, env.food, obs)
+    renderer.render(env.snake, env.food, obs, [x for x in env.obstacles])
 
     # Calculate metrics
     mean_score = total_score / games_played if games_played > 0 else 0
