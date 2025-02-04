@@ -13,7 +13,7 @@ def sort_by_distance(x, y, positions):
 class SnakeEnvLarge(gym.Env):
     def __init__(self, num_food=25, num_obstacles=3):
         super(SnakeEnvLarge, self).__init__()
-        self.grid_size = (20, 20)
+        self.grid_size = (50, 50)
         self.obersvation_size = (11, 11)
         self.action_space = spaces.Discrete(3)  # Only 3 actions: rotate left (0) and rotate right (1) or do nothing
 

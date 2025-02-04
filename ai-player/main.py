@@ -64,6 +64,7 @@ def predict(state, player_sid):
         "grid": grid,
         "food_direction": food_direction
     }
+    # Todo: get observation should not be implemented twice -> use env here to? maybe some interface thingy
 
     action, _ = model.predict(nn_input)
     
